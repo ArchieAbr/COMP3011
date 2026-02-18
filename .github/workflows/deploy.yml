@@ -23,3 +23,20 @@ jobs:
       run: |
         docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/urbanpulse:latest .
         docker push ${{ secrets.ACR_LOGIN_SERVER }}/urbanpulse:latest
+
+    - name: Azure login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Deploy to Azure Web App for Containers
+      run: |
+        az webapp config container set \
+          --name UrbanPulse \
+          --resource-group UrbanPulse-RG \
+          --docker-custom-image-name ${{ secrets.ACR_LOGIN_SERVER }}/urbanpulse:latest \
+          --docker-registry-server-url https://${{ secrets.ACR_LOGIN_SERVER }} \
+          --docker-registry-server-user ${{ secrets.ACR_USERNAME }} \
+          --docker-registry-server-password ${{ secrets.ACR_PASSWORD }}
+
+        az webapp restart --name UrbanPulse --resource-group UrbanPulse-RG

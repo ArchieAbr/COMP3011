@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends
 from .database import engine, Base, get_db
 from .models import Property, CrimeStat, MarketTrend # Imports from __init__.py
 
-app = FastAPI(title="UrbanPulse 360 API")
+app = FastAPI(title="UrbanPulse API")
 
 # This triggers the table creation in Azure
 Base.metadata.create_all(bind=engine)

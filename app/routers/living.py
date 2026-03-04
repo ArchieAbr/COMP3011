@@ -9,8 +9,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import CrimeStat
-from ..schemas import SafetyScoreResponse
+from ..models import CrimeStat, Property as PropertyModel
+from ..schemas import SafetyScoreResponse, AffordabilityResponse
 
 router = APIRouter(
     prefix="/living",
@@ -105,4 +105,79 @@ def get_safety_score(
         top_crime_categories=top_categories,
         rating=rating,
         data_months=data_months,
+    )
+
+
+def calculate_affordability_index(price_to_rent_ratio: float) -> int:
+    """
+    Calculate affordability index (0-100) based on price-to-rent ratio.
+    
+    Lower ratio = more affordable to buy vs rent.
+    UK average is ~15-20. Below 15 = affordable, above 25 = expensive.
+    """
+    # Scale: ratio 10 = 100 (very affordable), ratio 30+ = 0 (very expensive)
+    index = max(0, min(100, int((30 - price_to_rent_ratio) * 5)))
+    return index
+
+
+def get_affordability_rating(index: int) -> str:
+    """Convert affordability index to rating label."""
+    if index >= 80:
+        return "very_affordable"
+    elif index >= 60:
+        return "affordable"
+    elif index >= 40:
+        return "moderate"
+    elif index >= 20:
+        return "expensive"
+    else:
+        return "very_expensive"
+
+
+@router.get("/affordability/{postcode}", response_model=AffordabilityResponse)
+def get_affordability(
+    postcode: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Get affordability analysis for a specific postcode.
+    
+    Calculates price-to-rent ratio and affordability index
+    based on local property data.
+    """
+    sector = extract_postcode_sector(postcode)
+    
+    # Get properties with both price and rent data
+    properties = db.query(PropertyModel).filter(
+        PropertyModel.postcode.ilike(f"{sector}%"),
+        PropertyModel.price > 0,
+        PropertyModel.rent_pcm > 0,
+    ).all()
+    
+    if not properties:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No property data found for postcode {postcode}",
+        )
+    
+    # Calculate averages
+    avg_price = int(sum(p.price for p in properties) / len(properties))
+    avg_rent = int(sum(p.rent_pcm for p in properties) / len(properties))
+    
+    # Price-to-rent ratio (price / annual rent)
+    annual_rent = avg_rent * 12
+    price_to_rent = round(avg_price / annual_rent, 2) if annual_rent > 0 else 0
+    
+    # Calculate affordability index
+    affordability_index = calculate_affordability_index(price_to_rent)
+    rating = get_affordability_rating(affordability_index)
+    
+    return AffordabilityResponse(
+        postcode=postcode.upper(),
+        avg_property_price=avg_price,
+        avg_monthly_rent=avg_rent,
+        price_to_rent_ratio=price_to_rent,
+        affordability_index=affordability_index,
+        rating=rating,
+        properties_analysed=len(properties),
     )

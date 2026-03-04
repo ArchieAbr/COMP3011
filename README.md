@@ -32,3 +32,27 @@ COMP3011/
     ├── __init__.py
     └── test_main.py
 ```
+
+Phase 1: Foundation (Current Sprint)
+Commit 1: Config & Schemas
+
+config.py - API key auth
+schemas/properties.py - Property schemas
+schemas/analytics.py - Analytics schemas
+Commit 2: CRUD Router ← Next
+
+Wire up market.py router in main.py
+Test: Create, Read, Update, Delete properties
+Phase 2: Investor Analytics
+Commit 3: Investor Router
+
+/investor/growth-forecast/{postcode}
+/investor/yield-hotspots
+/investor/market-trends/{region}
+Phase 3: Living/Relocator
+Commit 4: Living Router
+
+/living/safety-score/{postcode}
+/living/affordability
+/living/compare
+

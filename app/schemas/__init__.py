@@ -17,4 +17,8 @@ from .analytics import (
     YieldHotspotsResponse,
     MarketTrendResponse,
     RegionalTrendsResponse,
+    SafetyScoreResponse,
+    AffordabilityResponse,
+    AreaSummary,
+    CompareAreasResponse,
 )

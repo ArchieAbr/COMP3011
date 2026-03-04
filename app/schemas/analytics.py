@@ -90,3 +90,46 @@ class RegionalTrendsResponse(BaseModel):
 
     region: str
     trends: list[MarketTrendResponse]
+
+
+# ============== Living/Relocator Analytics Schemas ==============
+
+class SafetyScoreResponse(BaseModel):
+    """Safety score for a postcode area."""
+
+    postcode: str
+    safety_score: int = Field(..., ge=0, le=100, description="0-100 score (higher = safer)")
+    crime_count_6m: int = Field(..., description="Total crimes in last 6 months")
+    top_crime_categories: list[str] = Field(..., description="Most common crime types")
+    rating: str = Field(..., description="very_safe, safe, moderate, caution, high_risk")
+    data_months: int = Field(..., description="Months of data used")
+
+
+class AffordabilityResponse(BaseModel):
+    """Affordability analysis for a postcode area."""
+
+    postcode: str
+    avg_property_price: int
+    avg_monthly_rent: int
+    price_to_rent_ratio: float = Field(..., description="Property price / annual rent")
+    affordability_index: int = Field(..., ge=0, le=100, description="0-100 (higher = more affordable)")
+    rating: str = Field(..., description="very_affordable, affordable, moderate, expensive, very_expensive")
+    properties_analysed: int
+
+
+class AreaSummary(BaseModel):
+    """Summary of a single area for comparison."""
+
+    postcode: str
+    safety_score: int
+    affordability_index: int
+    avg_price: int
+    avg_rent: int
+    properties_count: int
+
+
+class CompareAreasResponse(BaseModel):
+    """Comparison of multiple areas."""
+
+    areas: list[AreaSummary]
+    recommended: Optional[str] = Field(None, description="Best postcode based on criteria")

@@ -2,41 +2,51 @@ name: Deploy to Azure ACR
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-    
-    - name: Log in to Azure Container Registry
-      uses: docker/login-action@v2
-      with:
-        registry: ${{ secrets.ACR_LOGIN_SERVER }}
-        username: ${{ secrets.ACR_USERNAME }}
-        password: ${{ secrets.ACR_PASSWORD }}
-    
-    - name: Build and Push Docker image
-      run: |
-        docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/urbanpulse:latest .
-        docker push ${{ secrets.ACR_LOGIN_SERVER }}/urbanpulse:latest
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Azure login
-      uses: azure/login@v1
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Log in to Azure Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
 
-    - name: Deploy to Azure Web App for Containers
-      run: |
-        az webapp config container set \
-          --name UrbanPulse \
-          --resource-group UrbanPulse-RG \
-          --docker-custom-image-name ${{ secrets.ACR_LOGIN_SERVER }}/urbanpulse:latest \
-          --docker-registry-server-url https://${{ secrets.ACR_LOGIN_SERVER }} \
-          --docker-registry-server-user ${{ secrets.ACR_USERNAME }} \
-          --docker-registry-server-password ${{ secrets.ACR_PASSWORD }}
+      - name: Build and Push Docker image
+        run: |
+          docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/urbanpulse:latest .
+          docker push ${{ secrets.ACR_LOGIN_SERVER }}/urbanpulse:latest
 
-        az webapp restart --name UrbanPulse --resource-group UrbanPulse-RG
+      - name: Azure login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure Web App for Containers
+        run: |
+          az webapp config container set \
+            --name UrbanPulse \
+            --resource-group UrbanPulse-RG \
+            --docker-custom-image-name ${{ secrets.ACR_LOGIN_SERVER }}/urbanpulse:latest \
+            --docker-registry-server-url https://${{ secrets.ACR_LOGIN_SERVER }} \
+            --docker-registry-server-user ${{ secrets.ACR_USERNAME }} \
+            --docker-registry-server-password ${{ secrets.ACR_PASSWORD }}
+
+      - name: Set App Service environment variables
+        run: |
+          az webapp config appsettings set \
+            --name UrbanPulse \
+            --resource-group UrbanPulse-RG \
+            --settings \
+              DATABASE_URL="${{ secrets.DATABASE_URL }}" \
+              API_KEY="${{ secrets.API_KEY }}"
+
+      - name: Restart App Service
+        run: az webapp restart --name UrbanPulse --resource-group UrbanPulse-RG

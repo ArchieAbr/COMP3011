@@ -12,4 +12,9 @@ from .analytics import (
     CrimeStatRead,
     MarketTrendRead,
     AreaMetricRead,
+    GrowthForecast,
+    YieldHotspot,
+    YieldHotspotsResponse,
+    MarketTrendResponse,
+    RegionalTrendsResponse,
 )

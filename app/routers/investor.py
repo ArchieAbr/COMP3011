@@ -2,12 +2,16 @@
 Investor Router - Analytics endpoints for property investors.
 Provides growth forecasting based on market trend data.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import datetime
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Property as PropertyModel, MarketTrend
-from ..schemas import GrowthForecast
+from ..schemas import GrowthForecast, YieldHotspot, YieldHotspotsResponse
 
 router = APIRouter(
     prefix="/investor",
@@ -105,4 +109,66 @@ def get_growth_forecast(
         annual_growth_rate=annual_growth,
         confidence=confidence,
         data_points=data_points,
+    )
+
+
+@router.get("/yield-hotspots", response_model=YieldHotspotsResponse)
+def get_yield_hotspots(
+    region: Optional[str] = Query(None, description="Filter by region (e.g., 'SW', 'NW')"),
+    limit: int = Query(10, ge=1, le=50, description="Number of hotspots to return"),
+    db: Session = Depends(get_db),
+):
+    """
+    Get top rental yield hotspots.
+
+    Returns postcode sectors ranked by gross rental yield,
+    optionally filtered by region.
+    """
+    # Build base query for properties with rent data
+    query = db.query(
+        func.left(PropertyModel.postcode, 4).label("postcode_sector"),
+        func.avg(PropertyModel.price).label("avg_price"),
+        func.avg(PropertyModel.rent_pcm).label("avg_rent"),
+        func.count(PropertyModel.id).label("count"),
+    ).filter(
+        PropertyModel.price > 0,
+        PropertyModel.rent_pcm > 0,
+    )
+
+    if region:
+        query = query.filter(PropertyModel.postcode.ilike(f"{region.upper()}%"))
+
+    # Group by postcode sector
+    results = query.group_by(
+        func.left(PropertyModel.postcode, 4)
+    ).having(
+        func.count(PropertyModel.id) >= 3  # Minimum sample size
+    ).all()
+
+    # Calculate yields and sort
+    hotspots = []
+    for row in results:
+        avg_price = int(row.avg_price)
+        avg_rent = int(row.avg_rent)
+
+        if avg_price > 0:
+            gross_yield = round((avg_rent * 12 / avg_price) * 100, 2)
+            hotspots.append(
+                YieldHotspot(
+                    postcode_sector=row.postcode_sector,
+                    avg_property_price=avg_price,
+                    avg_monthly_rent=avg_rent,
+                    gross_yield=gross_yield,
+                    properties_count=row.count,
+                )
+            )
+
+    # Sort by yield descending and limit
+    hotspots.sort(key=lambda x: x.gross_yield, reverse=True)
+    hotspots = hotspots[:limit]
+
+    return YieldHotspotsResponse(
+        region=region.upper() if region else None,
+        hotspots=hotspots,
+        generated_at=datetime.utcnow().isoformat() + "Z",
     )

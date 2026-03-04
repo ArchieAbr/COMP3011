@@ -11,7 +11,13 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Property as PropertyModel, MarketTrend
-from ..schemas import GrowthForecast, YieldHotspot, YieldHotspotsResponse
+from ..schemas import (
+    GrowthForecast,
+    MarketTrendResponse,
+    RegionalTrendsResponse,
+    YieldHotspot,
+    YieldHotspotsResponse,
+)
 
 router = APIRouter(
     prefix="/investor",
@@ -171,4 +177,59 @@ def get_yield_hotspots(
         region=region.upper() if region else None,
         hotspots=hotspots,
         generated_at=datetime.utcnow().isoformat() + "Z",
+    )
+
+
+@router.get("/market-trends/{region}", response_model=RegionalTrendsResponse)
+def get_market_trends(
+    region: str,
+    quarters: int = Query(8, ge=1, le=20, description="Number of quarters to return"),
+    db: Session = Depends(get_db),
+):
+    """
+    Get historical market trends for a region.
+
+    Returns quarterly average prices with period-over-period
+    percentage changes for the specified region.
+    """
+    region_upper = region.upper()
+
+    # Query market trends for the region
+    trends = db.query(MarketTrend).filter(
+        MarketTrend.region.ilike(f"{region_upper}%")
+    ).order_by(
+        MarketTrend.quarter.desc()
+    ).limit(quarters).all()
+
+    if not trends:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No market trend data found for region {region}",
+        )
+
+    # Reverse to chronological order
+    trends = list(reversed(trends))
+
+    # Build response with price change calculations
+    trend_responses = []
+    for i, trend in enumerate(trends):
+        price_change = None
+        if i > 0 and trends[i - 1].avg_price > 0:
+            prev_price = trends[i - 1].avg_price
+            price_change = round(
+                ((trend.avg_price - prev_price) / prev_price) * 100, 2
+            )
+
+        trend_responses.append(
+            MarketTrendResponse(
+                region=trend.region,
+                quarter=trend.quarter,
+                avg_price=trend.avg_price,
+                price_change_pct=price_change,
+            )
+        )
+
+    return RegionalTrendsResponse(
+        region=region_upper,
+        trends=trend_responses,
     )

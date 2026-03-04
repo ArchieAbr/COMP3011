@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from .database import engine, Base
-from .routers import market_router, investor_router
+from .routers import market_router, investor_router, living_router
 
 app = FastAPI(
     title="UrbanPulse 360 API",
@@ -14,6 +14,7 @@ Base.metadata.create_all(bind=engine)
 # Register routers
 app.include_router(market_router)
 app.include_router(investor_router)
+app.include_router(living_router)
 
 
 @app.get("/", tags=["Health"])
